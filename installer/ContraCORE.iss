@@ -121,14 +121,14 @@ Filename: "{app}\{#MyAppExeName}"; \
 
 [Registry]
 ; Add/Remove Programs bilgisi (Inno otomatik ekler, ek alan için)
-Root: HKLM; \
+Root: HKCU; \
   Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppName}_is1"; \
   ValueType: string; \
   ValueName: "DisplayVersion"; \
   ValueData: "{#MyAppVersion}"; \
   Flags: uninsdeletekey
 
-Root: HKLM; \
+Root: HKCU; \
   Subkey: "Software\Microsoft\Windows\CurrentVersion\Uninstall\{#MyAppName}_is1"; \
   ValueType: string; \
   ValueName: "DisplayIcon"; \
