@@ -29,8 +29,8 @@ AppPublisherURL=
 AppSupportURL=
 AppUpdatesURL=
 
-; Kurulum dizini
-DefaultDirName={autopf}\{#MyAppName}
+; Kurulum dizini — LocalAppData: UAC gerektirmez, Launcher güncelleme yapabilir
+DefaultDirName={localappdata}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 
 ; Çıktı
@@ -46,9 +46,8 @@ LZMAUseSeparateProcess=yes
 ; Windows minimum sürüm: Windows 10
 MinVersion=10.0
 
-; Program Files altına kurulum — UAC isteği yapar
-PrivilegesRequired=admin
-PrivilegesRequiredOverridesAllowed=dialog
+; LocalAppData kurulum — UAC gerektirmez
+PrivilegesRequired=lowest
 
 ; Wizard görünümü
 WizardStyle=modern
