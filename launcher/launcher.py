@@ -323,23 +323,44 @@ def _take_backup(install_dir: str, backup_dir: str):
     _log('Yedek alındı.')
 
 
-# ── Güvenli Uygulama (_temp_apply staging) ───────────────────────────────────
+# ── Dosya değiştirme — rename-first (xml-fatura battle-tested yöntemi) ────────
+
+def _replace_file(src: str, dst: str):
+    """
+    src dosyasını dst'ye yazar.
+    Yöntem: os.rename(dst → dst.old) → copy(src → dst)
+    os.rename yüklü DLL'lere bile izin verilir (WinError 5'i önler).
+    xml-fatura updater'dan alınan production-proven yaklaşım.
+    """
+    old = dst + '.ccold'
+    try:
+        if os.path.exists(old):
+            try: os.remove(old)
+            except Exception: pass
+        if os.path.exists(dst):
+            os.rename(dst, old)        # rename kilitli dosyaya izin verilir
+        shutil.copy2(src, dst)
+        try: os.remove(old)
+        except Exception: pass         # .ccold temizlenemezse sorun değil
+    except Exception:
+        # Rename başarısız olduysa (farklı drive vs.) klasik yönteme dön
+        if os.path.exists(dst):
+            try: os.remove(dst)
+            except Exception: pass
+        shutil.copy2(src, dst)
+
+
+# ── Güvenli Uygulama (staging + rename-first) ────────────────────────────────
 
 def _apply_update(extracted_dir: str, install_dir: str):
     """
-    Yeni dosyaları güvenli şekilde uygular.
-
-    Akış:
-    1. Tüm yeni içerik install_dir/_temp_apply/ dizinine kopyalanır (staging)
-    2. Staging başarılıysa hedef klasörler replace edilir
-    3. ContraCORELauncher.exe overwrite edilmez (çalışırken kilitli)
-
-    Bu sayede kopyalama aşamasında exception olsa mevcut kurulum bozulmaz.
-    Rollback yedekten yapılır.
+    Yeni dosyaları uygular.
+    Staging → rename-first replace.
+    Launcher skip edilir (kendi kendini değiştiremez).
     """
     temp_apply = os.path.join(install_dir, '_temp_apply')
     if os.path.exists(temp_apply):
-        shutil.rmtree(temp_apply)
+        shutil.rmtree(temp_apply, ignore_errors=True)
     os.makedirs(temp_apply)
 
     # ── 1. Staging: extracted → _temp_apply ──────────────────────────────────
@@ -351,14 +372,13 @@ def _apply_update(extracted_dir: str, install_dir: str):
     for entry in os.scandir(extracted_dir):
         if entry.is_file():
             if entry.name.lower() == LAUNCHER_EXE.lower():
-                # Çalışırken overwrite edilemez — skip
-                _log(f'{LAUNCHER_EXE} güncelleme sırasında skip edildi (çalışıyor).')
+                _log(f'{LAUNCHER_EXE} skip (çalışırken değiştirilemez).')
                 continue
             shutil.copy2(entry.path, os.path.join(temp_apply, entry.name))
 
     _log('Staging tamamlandı.')
 
-    # ── 2. Replace: _temp_apply → install_dir ────────────────────────────────
+    # ── 2. Replace: rename-first yöntemiyle ──────────────────────────────────
     for folder in ('modules', 'Icon', 'Logom'):
         staged = os.path.join(temp_apply, folder)
         target = os.path.join(install_dir, folder)
@@ -369,7 +389,7 @@ def _apply_update(extracted_dir: str, install_dir: str):
 
     for entry in os.scandir(temp_apply):
         if entry.is_file():
-            shutil.move(entry.path, os.path.join(install_dir, entry.name))
+            _replace_file(entry.path, os.path.join(install_dir, entry.name))
 
     # ── 3. Temizlik ───────────────────────────────────────────────────────────
     try:
@@ -435,6 +455,23 @@ def _clear_pending():
         os.remove(PENDING_FILE)
     except Exception:
         pass
+
+
+def _write_last_update(meta: dict):
+    """Güncelleme tamamlanınca ContraCORE'un okuyacağı last_update.json'ı yazar."""
+    try:
+        os.makedirs(APPDATA_DIR, exist_ok=True)
+        last = {
+            'version':         meta.get('version', ''),
+            'notes':           meta.get('notes', ''),
+            'changelog':       meta.get('changelog', []),
+            'updated_modules': meta.get('updated_modules', []),
+        }
+        path = os.path.join(APPDATA_DIR, 'last_update.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(last, f, ensure_ascii=False)
+    except Exception as e:
+        _log(f'last_update.json yazılamadı: {e}')
 
 
 # ── Ana güncelleme işlemi ─────────────────────────────────────────────────────
@@ -506,6 +543,7 @@ def _run_update(install_dir: str, meta: 'dict | None' = None) -> bool:
             _log(f'update.json lokal güncelleme hatası (kritik değil): {e}')
 
         _clear_pending()
+        _write_last_update(meta)
 
         # 7. Yedek temizle
         try:
@@ -542,13 +580,40 @@ def _is_contracore_running() -> bool:
         return False
 
 
-def _wait_for_contracore_close(timeout_s: int = 30):
-    deadline = time.time() + timeout_s
-    while time.time() < deadline:
-        if not _is_contracore_running():
-            return
+def _wait_for_pid(pid: int, timeout_ms: int = 20000) -> bool:
+    """
+    WaitForSingleObject ile PID'in gerçekten kapanmasını bekler.
+    xml-fatura updater'dan alınan battle-tested yöntem.
+    tasklist polling'den çok daha güvenilir — process handle sinyallenince döner.
+    Returns True = kapandı, False = timeout.
+    """
+    import ctypes
+    SYNCHRONIZE = 0x00100000
+    handle = ctypes.windll.kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+    if not handle:
+        return True  # Zaten kapanmış
+    result = ctypes.windll.kernel32.WaitForSingleObject(handle, timeout_ms)
+    ctypes.windll.kernel32.CloseHandle(handle)
+    return result == 0  # WAIT_OBJECT_0 = 0 → başarılı
+
+
+def _wait_for_contracore_close(pid: int = 0, timeout_s: int = 30):
+    if pid:
+        _log(f'WaitForSingleObject ile PID {pid} bekleniyor...')
+        exited = _wait_for_pid(pid, timeout_ms=timeout_s * 1000)
+        if not exited:
+            _log('WaitForSingleObject timeout — tasklist ile devam ediliyor.')
+        # Kısa ek bekleme: Windows dosya handle'larının serbest kalması için
         time.sleep(0.5)
-    _log('ContraCORE kapanmadı, zaman aşımı.')
+    else:
+        # PID bilinmiyorsa eski yönteme geri dön
+        deadline = time.time() + timeout_s
+        while time.time() < deadline:
+            if not _is_contracore_running():
+                time.sleep(1)
+                return
+            time.sleep(0.5)
+        _log('ContraCORE kapanmadı, zaman aşımı.')
 
 
 def _launch_contracore(install_dir: str):
@@ -565,13 +630,14 @@ def _launch_contracore(install_dir: str):
 def main():
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument('--do-update', action='store_true')
+    parser.add_argument('--pid', type=int, default=0)
     args, _ = parser.parse_known_args()
 
     install_dir = _install_dir()
-    _log(f'Launcher başladı — install_dir={install_dir}, do_update={args.do_update}')
+    _log(f'Launcher başladı — install_dir={install_dir}, do_update={args.do_update}, pid={args.pid}')
 
     if args.do_update:
-        _wait_for_contracore_close()
+        _wait_for_contracore_close(pid=args.pid)
         _run_update(install_dir)
         _launch_contracore(install_dir)
         return

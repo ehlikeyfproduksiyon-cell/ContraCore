@@ -434,6 +434,7 @@ class Sidebar(QFrame):
     """
     module_selected      = Signal(str)
     activation_requested = Signal(str)
+    update_clicked       = Signal()
 
     def __init__(self, modules: list[dict],
                  module_states: 'dict[str, dict] | None' = None,
@@ -603,7 +604,7 @@ class Sidebar(QFrame):
     def _build_footer(self) -> QFrame:
         self._footer_frame = QFrame()
         self._footer_frame.setFrameShape(QFrame.NoFrame)
-        self._footer_frame.setFixedHeight(72)
+        self._footer_frame.setFixedHeight(88)
         self._footer_frame.setStyleSheet(f'background:{NAVY};')
 
         # Expanded footer
@@ -613,6 +614,24 @@ class Sidebar(QFrame):
         exp_lay = QVBoxLayout(self._footer_expanded)
         exp_lay.setContentsMargins(12, 10, 12, 10)
         exp_lay.setSpacing(6)
+
+        # Güncelleme butonu — başlangıçta gizli, set_app_update() ile gösterilir
+        self._update_btn = QPushButton('↑  Güncelleme Mevcut')
+        self._update_btn.setFont(QFont('Segoe UI', 9, QFont.Bold))
+        self._update_btn.setFixedHeight(30)
+        self._update_btn.setCursor(Qt.PointingHandCursor)
+        self._update_btn.setStyleSheet('''
+            QPushButton {
+                background: #0970fc;
+                color: #ffffff;
+                border: none; border-radius: 6px; font-weight: 700;
+            }
+            QPushButton:hover { background: #1a7ffd; }
+            QPushButton:pressed { background: #0558cc; }
+        ''')
+        self._update_btn.clicked.connect(self._on_update_btn_clicked)
+        self._update_btn.setVisible(False)
+        exp_lay.addWidget(self._update_btn)
 
         self._lic_btn = QPushButton('🔑 Lisans Yönetimi')
         self._lic_btn.setFont(QFont('Segoe UI', 9, QFont.Bold))
@@ -743,29 +762,99 @@ class Sidebar(QFrame):
                 states[mid] = {'state': 'licensed', 'tooltip': ''}
         self.update_module_states(states)
 
+    def mark_modules_updated(self, module_ids: list):
+        """Belirtilen modüllerin sidebar itemlerinde new.png badge gösterir."""
+        for mid in module_ids:
+            item = self._items.get(mid)
+            if item:
+                item.set_state(
+                    item.state,
+                    tooltip   = item.toolTip(),
+                    days_left = item._days_left,
+                    trial_days= item._trial_days,
+                    has_update= True,
+                )
+
     def set_app_update(self, version: str):
-        """
-        Shell seviyesinde güncelleme mevcut olduğunda çağrılır.
-        Footer'daki versiyon etiketini ve Lisans butonunu güncelleme bilgisiyle değiştirir.
-        """
+        """Güncelleme butonu gösterilir, lisans butonu korunur."""
         try:
-            self._lic_btn.setText(f'🔔 Güncelleme v{version}')
-            self._lic_btn.setStyleSheet('''
-                QPushButton {
-                    background: #E53E3E;
-                    color: #FFFFFF;
-                    border: none;
-                    border-radius: 8px;
-                    font-weight: 700;
-                    letter-spacing: 0.3px;
-                }
-                QPushButton:hover {
-                    background: #FC8181;
-                }
-            ''')
-            self._lic_btn.setToolTip(f'ContraCORE {version} mevcut — güncelle')
+            self._update_btn.setText(f'↑  Güncelleme v{version}')
+            self._update_btn.setToolTip(f'ContraCORE {version} mevcut — tıkla, güncelle')
+            self._update_btn.setVisible(True)
+            self._footer_frame.setFixedHeight(108)
         except Exception:
             pass
+
+
+    def _on_update_btn_clicked(self):
+        """Güncelle butonuna basıldığında onay dialog'u gösterir."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QFont
+
+        version = self._update_btn.text().replace('↑  Güncelleme ', '').strip()
+
+        dlg = QDialog(self.window())
+        dlg.setWindowTitle('Güncelleme')
+        dlg.setFixedWidth(380)
+        dlg.setModal(True)
+        dlg.setStyleSheet('QDialog { background: #0B1F3A; }')
+
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(28, 24, 28, 20)
+        lay.setSpacing(16)
+
+        title = QLabel(f'Güncelleme Mevcut — {version}')
+        title.setFont(QFont('Segoe UI', 11, QFont.Bold))
+        title.setStyleSheet('color: #ffffff; background: transparent;')
+        lay.addWidget(title)
+
+        msg = QLabel('Program güncellenecek ve yeniden başlatılacak.\nDevam etmek istiyor musunuz?')
+        msg.setFont(QFont('Segoe UI', 9))
+        msg.setStyleSheet('color: #A0AEC0; background: transparent;')
+        msg.setWordWrap(True)
+        lay.addWidget(msg)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(10)
+        btn_row.addStretch()
+
+        btn_style_no = '''
+            QPushButton {
+                background: #1E3660; color: #A0AEC0;
+                border: 1px solid #2D4A6A; border-radius: 6px;
+                padding: 0 20px; font-size: 9pt;
+            }
+            QPushButton:hover { background: #2D4A6A; color: #ffffff; }
+        '''
+        btn_style_yes = '''
+            QPushButton {
+                background: #0970fc; color: #ffffff;
+                border: none; border-radius: 6px;
+                padding: 0 20px; font-size: 9pt; font-weight: 700;
+            }
+            QPushButton:hover { background: #1a7ffd; }
+            QPushButton:pressed { background: #0558cc; }
+        '''
+
+        no_btn = QPushButton('Daha Sonra')
+        no_btn.setFixedHeight(34)
+        no_btn.setCursor(Qt.PointingHandCursor)
+        no_btn.setStyleSheet(btn_style_no)
+        no_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(no_btn)
+
+        yes_btn = QPushButton('Güncelle')
+        yes_btn.setFixedHeight(34)
+        yes_btn.setCursor(Qt.PointingHandCursor)
+        yes_btn.setStyleSheet(btn_style_yes)
+        yes_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(yes_btn)
+
+        lay.addLayout(btn_row)
+
+        if dlg.exec() == QDialog.Accepted:
+            self.update_clicked.emit()
 
 
 # ── Yardımcı: eski arayüzden dönüşüm ─────────────────────────────────────────

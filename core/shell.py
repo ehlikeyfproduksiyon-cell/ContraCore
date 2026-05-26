@@ -49,10 +49,25 @@ class Shell(QMainWindow):
         self._open_default_module()
 
         # Pending update (Launcher tarafından yazıldı)
-        from core.update_state import read_pending
+        from core.update_state import read_pending, clear_pending, read_last_update, clear_last_update
+        from core.version import APP_VERSION
         self._pending_update = read_pending()
         if self._pending_update:
-            QTimer.singleShot(1500, self._show_update_banner)
+            # Eğer pending versiyon mevcut versiyondan yüksek değilse geçersiz — temizle
+            def _ver(s):
+                try: return tuple(int(x) for x in str(s).split('.'))
+                except: return (0,)
+            if _ver(self._pending_update.get('version', '0')) <= _ver(APP_VERSION):
+                clear_pending()
+                self._pending_update = None
+            else:
+                QTimer.singleShot(1500, self._show_update_banner)
+
+        # Güncelleme tamamlandı mı? — "Neler Yeni" dialogu
+        last = read_last_update()
+        if last:
+            clear_last_update()
+            QTimer.singleShot(800, lambda: self._show_whats_new(last))
 
     # ── Pencere Ayarları ──────────────────────────────────────────────────────
 
@@ -98,18 +113,14 @@ class Shell(QMainWindow):
         )
         self._sidebar.module_selected.connect(self._on_module_selected)
         self._sidebar.activation_requested.connect(self._on_activation_requested)
+        self._sidebar.update_clicked.connect(self._on_update_clicked)
 
-        # Güncelleme banner'ı (başlangıçta gizli)
-        self._update_banner = self._build_update_banner()
-        self._update_banner.setVisible(False)
-
-        # Sağ alan: banner (üst) + stacked widget (geri kalan)
+        # Sağ alan: sadece stacked widget
         right_area = QWidget()
         right_area.setStyleSheet('background: #F2F4F7;')
         v_lay = QVBoxLayout(right_area)
         v_lay.setContentsMargins(0, 0, 0, 0)
         v_lay.setSpacing(0)
-        v_lay.addWidget(self._update_banner)
         v_lay.addWidget(self._stacked, 1)
 
         # Merkezi alan
@@ -124,61 +135,112 @@ class Shell(QMainWindow):
 
         self.setCentralWidget(container)
 
-    def _build_update_banner(self) -> QWidget:
-        banner = QWidget()
-        banner.setFixedHeight(44)
-        banner.setStyleSheet('background: #2D3748; border-bottom: 1px solid #4A5568;')
-
-        lay = QHBoxLayout(banner)
-        lay.setContentsMargins(16, 6, 16, 6)
-        lay.setSpacing(12)
-
-        self._banner_lbl = QLabel('🔔 Yeni güncelleme mevcut')
-        self._banner_lbl.setFont(QFont('Segoe UI', 9))
-        self._banner_lbl.setStyleSheet('color: #FFFFFF; background: transparent;')
-        lay.addWidget(self._banner_lbl)
-        lay.addStretch()
-
-        btn = QPushButton('Güncelle')
-        btn.setFixedSize(90, 28)
-        btn.setCursor(Qt.PointingHandCursor)
-        btn.setFont(QFont('Segoe UI', 9, QFont.Bold))
-        btn.setStyleSheet('''
-            QPushButton {
-                background: #ffcc00; color: #1a1a2e;
-                border: none; border-radius: 6px; font-weight: 700;
-            }
-            QPushButton:hover { background: #ffd633; }
-        ''')
-        btn.clicked.connect(self._on_update_clicked)
-        lay.addWidget(btn)
-
-        dismiss = QPushButton('✕')
-        dismiss.setFixedSize(24, 24)
-        dismiss.setCursor(Qt.PointingHandCursor)
-        dismiss.setFont(QFont('Segoe UI', 10))
-        dismiss.setStyleSheet('''
-            QPushButton { background: transparent; color: #A0AEC0; border: none; }
-            QPushButton:hover { color: #FFFFFF; }
-        ''')
-        dismiss.clicked.connect(lambda: self._update_banner.setVisible(False))
-        lay.addWidget(dismiss)
-
-        return banner
-
     # ── Güncelleme Banner ─────────────────────────────────────────────────────
 
     def _show_update_banner(self):
         if not self._pending_update:
             return
-        version = self._pending_update.get('version', '?')
-        notes   = self._pending_update.get('notes', '')
-        text    = f'🔔  ContraCORE {version} hazır'
-        if notes:
-            text += f'  ·  {notes}'
-        self._banner_lbl.setText(text)
-        self._update_banner.setVisible(True)
+        version         = self._pending_update.get('version', '?')
+        updated_modules = self._pending_update.get('updated_modules', [])
         self._sidebar.set_app_update(version)
+        if updated_modules:
+            self._sidebar.mark_modules_updated(updated_modules)
+
+    def _show_whats_new(self, last: dict):
+        """Güncelleme tamamlandıktan sonra açılan 'Neler Yeni' dialogu."""
+        from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QScrollArea
+        version         = last.get('version', '?')
+        notes           = last.get('notes', '')
+        changelog       = last.get('changelog', [])
+        updated_modules = last.get('updated_modules', [])
+
+        # Modül badge'leri güncelle
+        if updated_modules:
+            self._sidebar.mark_modules_updated(updated_modules)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f'ContraCORE {version} — Güncelleme Tamamlandı')
+        dlg.setMinimumWidth(460)
+        dlg.setModal(True)
+        dlg.setStyleSheet('QDialog { background: #0B1F3A; }')
+
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(28, 24, 28, 20)
+        lay.setSpacing(14)
+
+        # Başlık
+        title = QLabel(f'✓  ContraCORE {version} yüklendi')
+        title.setFont(QFont('Segoe UI', 13, QFont.Bold))
+        title.setStyleSheet('color: #C9A46A; background: transparent;')
+        lay.addWidget(title)
+
+        # Açıklama notu
+        if notes:
+            lbl = QLabel(notes)
+            lbl.setFont(QFont('Segoe UI', 9))
+            lbl.setStyleSheet('color: #A0AEC0; background: transparent;')
+            lbl.setWordWrap(True)
+            lay.addWidget(lbl)
+
+        # Changelog listesi
+        if changelog:
+            cl_title = QLabel('Bu sürümde:')
+            cl_title.setFont(QFont('Segoe UI', 9, QFont.Bold))
+            cl_title.setStyleSheet('color: #CBD5E0; background: transparent;')
+            lay.addWidget(cl_title)
+
+            scroll = QScrollArea()
+            scroll.setMaximumHeight(200)
+            scroll.setWidgetResizable(True)
+            scroll.setStyleSheet('''
+                QScrollArea { border: 1px solid #1E3A5F; border-radius: 6px; background: #0F2A4A; }
+                QScrollBar:vertical { width: 6px; background: #0B1F3A; }
+                QScrollBar::handle:vertical { background: #2D4A6A; border-radius: 3px; }
+            ''')
+            inner = QWidget()
+            inner.setStyleSheet('background: #0F2A4A;')
+            vl = QVBoxLayout(inner)
+            vl.setContentsMargins(12, 10, 12, 10)
+            vl.setSpacing(6)
+            for item in changelog:
+                row = QLabel(f'·  {item}')
+                row.setFont(QFont('Segoe UI', 9))
+                row.setStyleSheet('color: #E2E8F0; background: transparent;')
+                row.setWordWrap(True)
+                vl.addWidget(row)
+            vl.addStretch()
+            scroll.setWidget(inner)
+            lay.addWidget(scroll)
+
+        # Güncellenen modüller
+        if updated_modules:
+            mod_names = {'xml-fatura': 'XML Fatura', 'compare-191': 'Compare 191'}
+            names = [mod_names.get(m, m) for m in updated_modules]
+            mod_lbl = QLabel('Güncellenen modüller:  ' + ',  '.join(names))
+            mod_lbl.setFont(QFont('Segoe UI', 8))
+            mod_lbl.setStyleSheet('color: #718096; background: transparent;')
+            lay.addWidget(mod_lbl)
+
+        # Kapat butonu
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        ok_btn = QPushButton('Tamam')
+        ok_btn.setFixedSize(100, 34)
+        ok_btn.setCursor(Qt.PointingHandCursor)
+        ok_btn.setFont(QFont('Segoe UI', 9, QFont.Bold))
+        ok_btn.setStyleSheet('''
+            QPushButton {
+                background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+                    stop:0 #C9A46A, stop:1 #A0783A);
+                color: #0B1F3A; border: none; border-radius: 6px;
+            }
+            QPushButton:hover { background: #DDB87A; }
+        ''')
+        ok_btn.clicked.connect(dlg.accept)
+        btn_row.addWidget(ok_btn)
+        lay.addLayout(btn_row)
+
+        dlg.exec()
 
     def _on_update_clicked(self):
         """Güncelle butonuna basıldığında Launcher'ı --do-update ile başlatır ve çıkar."""
@@ -189,7 +251,7 @@ class Shell(QMainWindow):
                 'ContraCORELauncher.exe bulunamadı.\n'
                 'Lütfen ContraCORELauncher.exe üzerinden programı başlatın.')
             return
-        _sp.Popen([launcher, '--do-update'],
+        _sp.Popen([launcher, '--do-update', '--pid', str(os.getpid())],
                   creationflags=_sp.DETACHED_PROCESS,
                   cwd=os.path.dirname(launcher))
         from PySide6.QtWidgets import QApplication

@@ -1,10 +1,10 @@
 {
   "version": "1.0.1",
   "mandatory": false,
-  "notes": "Güncelleme butonu onay ekranı eklendi, lisans kaydı iyileştirildi",
+  "notes": "Güncelleme butonu onay ekranı, lisans kaydı iyileştirmesi, DLL kilit sorunu çözüldü",
   "changelog": [],
   "updated_modules": [],
   "zip_name": "ContraCORE_update.zip",
-  "zip_sha256": "14c944f8ec54d9660a8f14d9baa662721e3ad077f3ca3cb03656786128e88574",
+  "zip_sha256": "3f672f98220d30c977894b6345a22ce410746e73e223ec064623365ebb646075",
   "min_version": "1.0.0"
 }
