@@ -274,17 +274,106 @@ def _show_update_dialog(meta: dict) -> str:
 # ── İndirme & Doğrulama ───────────────────────────────────────────────────────
 
 def _download_zip(url: str, dest: str) -> bool:
-    try:
-        _log(f'İndiriliyor: {url}')
-        req = urllib.request.Request(url, headers={'User-Agent': 'ContraCORELauncher/1.0'})
-        with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=180) as r, \
-             open(dest, 'wb') as f:
-            shutil.copyfileobj(r, f)
-        _log(f'İndirme tamamlandı: {os.path.getsize(dest) / 1024 / 1024:.1f} MB')
-        return True
-    except Exception as e:
-        _log(f'İndirme hatası: {e}')
-        return False
+    """ZIP'i indirir; Tkinter progress penceresi gösterir."""
+    import threading
+    import tkinter as tk
+    from tkinter import ttk
+
+    result   = [False]
+    error    = [None]
+    _alive   = [True]
+    _queue: list = []
+    _lock    = threading.Lock()
+
+    def _enqueue(fn):
+        with _lock:
+            _queue.append(fn)
+
+    def _do_download():
+        try:
+            _log(f'İndiriliyor: {url}')
+            req = urllib.request.Request(url, headers={'User-Agent': 'ContraCORELauncher/1.0'})
+            with urllib.request.urlopen(req, context=_ssl_ctx(), timeout=180) as r:
+                total = int(r.info().get('Content-Length') or 0)
+                done  = 0
+                with open(dest, 'wb') as f:
+                    while True:
+                        buf = r.read(65536)
+                        if not buf:
+                            break
+                        f.write(buf)
+                        done += len(buf)
+                        pct  = (done / total * 100) if total else 0
+                        mb_done  = done  / 1_048_576
+                        mb_total = total / 1_048_576
+                        if total:
+                            info_txt = f'{mb_done:.1f} MB / {mb_total:.1f} MB  —  %{int(pct)}'
+                        else:
+                            info_txt = f'{mb_done:.1f} MB indiriliyor...'
+                        _enqueue(lambda p=pct, t=info_txt: (_bar.configure(value=p),
+                                                             _lbl_info.config(text=t)))
+            _log(f'İndirme tamamlandı: {os.path.getsize(dest)/1_048_576:.1f} MB')
+            result[0] = True
+        except Exception as e:
+            _log(f'İndirme hatası: {e}')
+            error[0] = str(e)
+        finally:
+            _enqueue(lambda: _close_win())
+
+    def _close_win():
+        _alive[0] = False
+        try: root.destroy()
+        except Exception: pass
+
+    root = tk.Tk()
+    root.title('ContraCORE — Güncelleniyor')
+    root.resizable(False, False)
+    root.configure(bg='#0B1F3A')
+    root.attributes('-topmost', True)
+    root.protocol('WM_DELETE_WINDOW', lambda: None)  # Kapatılamaz
+
+    w, h = 440, 160
+    root.geometry(
+        f'{w}x{h}+'
+        f'{(root.winfo_screenwidth()  - w) // 2}+'
+        f'{(root.winfo_screenheight() - h) // 2}'
+    )
+
+    tk.Label(root, text='🔄  Güncelleme İndiriliyor...',
+             font=('Segoe UI', 12, 'bold'),
+             fg='#C9A46A', bg='#0B1F3A').pack(pady=(22, 8))
+
+    style = ttk.Style(root)
+    style.theme_use('default')
+    style.configure('Blue.Horizontal.TProgressbar',
+                    troughcolor='#1E3660', background='#0970fc',
+                    thickness=14)
+    _bar = ttk.Progressbar(root, style='Blue.Horizontal.TProgressbar',
+                           length=380, mode='determinate', maximum=100)
+    _bar.pack(pady=4)
+
+    _lbl_info = tk.Label(root, text='Bağlanıyor...',
+                         font=('Segoe UI', 9), fg='#A0AEC0', bg='#0B1F3A')
+    _lbl_info.pack(pady=4)
+
+    def _poll():
+        if not _alive[0]:
+            return
+        try:
+            with _lock:
+                fns = _queue[:]
+                _queue.clear()
+            for fn in fns:
+                fn()
+            root.after(50, _poll)
+        except tk.TclError:
+            pass
+
+    root.after(50, _poll)
+    threading.Thread(target=_do_download, daemon=True).start()
+    root.mainloop()
+
+    return result[0]
 
 
 def _validate_zip(path: str, expected_sha256: str) -> bool:
@@ -621,8 +710,18 @@ def _launch_contracore(install_dir: str):
     if not os.path.isfile(exe):
         _show_error(f'{CONTRACORE_EXE} bulunamadı:\n{exe}')
         return
-    subprocess.Popen([exe], cwd=install_dir)
-    _log(f'{CONTRACORE_EXE} başlatıldı.')
+    try:
+        # ShellExecuteW: SmartScreen/Defender uyarı gösterir, hard block almaz.
+        # subprocess.Popen (CreateProcess) ise WinError 225 ile direkt bloke eder.
+        ret = ctypes.windll.shell32.ShellExecuteW(
+            None, 'open', exe, None, install_dir, 1  # SW_SHOWNORMAL = 1
+        )
+        if ret <= 32:
+            raise OSError(f'ShellExecuteW başarısız: {ret}')
+        _log(f'{CONTRACORE_EXE} başlatıldı (ShellExecuteW={ret}).')
+    except Exception as e:
+        _log(f'ShellExecuteW hatası ({e}), subprocess.Popen ile deneniyor...')
+        subprocess.Popen([exe], cwd=install_dir)
 
 
 # ── Ana akış ─────────────────────────────────────────────────────────────────

@@ -1,8 +1,8 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "mandatory": false,
   "notes": "",
   "zip_name": "ContraCORE_update.zip",
-  "zip_sha256": "e20bbaaab2ab1dae6ffc5b1378a073d0f81e8fb6fa3b2be6da00fc3b58b85e95",
+  "zip_sha256": "19fae6b9b99ab1cb1e0dcbcb37788df6d411958b3cd5ca62338a801905d1b612",
   "min_version": "1.0.0"
 }
