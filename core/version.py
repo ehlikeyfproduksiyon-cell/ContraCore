@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-APP_VERSION    = '1.0.1'
+APP_VERSION    = '1.0.2'
 
 # GitHub repo in "owner/repo" format — update before first release
 GITHUB_REPO    = 'ehlikeyfproduksiyon-cell/ContraCore'
