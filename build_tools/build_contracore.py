@@ -173,7 +173,7 @@ def _create_update_zip(release_dir: str) -> str:
                 if os.path.splitext(fname)[1].lower() in SKIP_EXTS:
                     continue
                 abs_path = os.path.join(root, fname)
-                rel_path = os.path.relpath(abs_path, os.path.dirname(release_dir))
+                rel_path = os.path.relpath(abs_path, release_dir)
                 zf.write(abs_path, rel_path.replace('\\', '/'))
                 file_count += 1
 
