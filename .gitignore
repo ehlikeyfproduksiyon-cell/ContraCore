@@ -1,0 +1,69 @@
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+
+# ── Virtual environment ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+Include/
+Lib/
+Scripts/
+pyvenv.cfg
+
+# ── Generated asset embed (17 MB — gen_assets.py ile üretilir) ───────────────
+core/_icons.py
+
+# ── Nuitka build artifacts ────────────────────────────────────────────────────
+main.build/
+main.dist/
+*.dist/
+*.build/
+nuitka-crash-report.xml
+
+# ── PyInstaller artifacts ─────────────────────────────────────────────────────
+build_tools/build_launcher_tmp/
+build_tools/dist/
+build_tools/__pycache__/
+
+# ── Release output ────────────────────────────────────────────────────────────
+release/
+
+# ── Güvenlik — public repo'ya asla gitmemeli ─────────────────────────────────
+keygen.py
+**/keygen.py
+admin_panel.bat
+core/license/_secret.py
+core/license/_secret_b.py
+Prompt/
+
+# ── Müşteri/lisans yönetim araçları (hassas) ─────────────────────────────────
+tools/
+
+# ── Legacy modules/ — cc_modules/ ile değiştirildi, müşteri verisi içeriyor ──
+modules/
+
+# ── Log & temp ────────────────────────────────────────────────────────────────
+*.log
+*.tmp
+*.bak
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+
+# ── Tasarım kaynakları (büyük binary, repo'da gereksiz) ──────────────────────
+Logom/
+*.psd
+*.otf
+*.ttf
+
+# ── Claude Code ───────────────────────────────────────────────────────────────
+.claude/
+
+# ── Inno Setup geçici ────────────────────────────────────────────────────────
+installer/*.log
