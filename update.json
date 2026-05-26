@@ -1,10 +1,10 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "mandatory": false,
-  "notes": "",
+  "notes": "Güncelleme butonu onay ekranı eklendi, lisans kaydı iyileştirildi",
   "changelog": [],
   "updated_modules": [],
   "zip_name": "ContraCORE_update.zip",
-  "zip_sha256": "72264cbced16358a59c802c814b45202076f77f6287151ef035ec012674b6d9b",
+  "zip_sha256": "14c944f8ec54d9660a8f14d9baa662721e3ad077f3ca3cb03656786128e88574",
   "min_version": "1.0.0"
 }
