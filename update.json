@@ -1,8 +1,8 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "mandatory": false,
-  "notes": "Güncelleme progress bar, DLL kilit sorunu çözüldü, güncelleme sonrası program açılmama hatası giderildi",
+  "notes": "",
   "zip_name": "ContraCORE_update.zip",
-  "zip_sha256": "4a4a6594f64f47f7c40a41aedbf10304bd954800bc2e20f1aa00a28fab4f9387",
+  "zip_sha256": "e20bbaaab2ab1dae6ffc5b1378a073d0f81e8fb6fa3b2be6da00fc3b58b85e95",
   "min_version": "1.0.0"
 }

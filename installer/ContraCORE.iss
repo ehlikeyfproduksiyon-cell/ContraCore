@@ -107,7 +107,7 @@ Name: "{autodesktop}\{#MyAppName}"; \
 Name: "desktopicon"; \
   Description: "Masaüstü kısayolu oluştur"; \
   GroupDescription: "Ek kısayollar:"; \
-  Flags: unchecked
+  Flags: checkedonce
 
 ; ── Kurulum sonrası çalıştır ─────────────────────────────────────────────────
 
