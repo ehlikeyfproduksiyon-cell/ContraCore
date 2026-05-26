@@ -1,8 +1,8 @@
 {
   "version": "1.0.2",
   "mandatory": false,
-  "notes": "Güncelleme sırasında indirme progress bar eklendi, DLL kilit sorunu (WinError 5) kalıcı olarak çözüldü",
+  "notes": "Güncelleme progress bar, DLL kilit sorunu çözüldü, güncelleme sonrası program açılmama hatası giderildi",
   "zip_name": "ContraCORE_update.zip",
-  "zip_sha256": "739e039e862113420c29a989dc7c69de4e42c12e2c257ee81652009845cf3f14",
+  "zip_sha256": "4a4a6594f64f47f7c40a41aedbf10304bd954800bc2e20f1aa00a28fab4f9387",
   "min_version": "1.0.0"
 }

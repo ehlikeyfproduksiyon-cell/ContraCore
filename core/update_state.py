@@ -30,3 +30,24 @@ def clear_pending():
         os.remove(_STATE_FILE)
     except Exception:
         pass
+
+
+_LAST_FILE = os.path.join(
+    os.environ.get('APPDATA', ''), 'ContraCore', 'last_update.json'
+)
+
+
+def read_last_update() -> 'dict | None':
+    """last_update.json varsa içeriğini döner; Launcher başarılı güncellemeden sonra yazar."""
+    try:
+        with open(_LAST_FILE, encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def clear_last_update():
+    try:
+        os.remove(_LAST_FILE)
+    except Exception:
+        pass
