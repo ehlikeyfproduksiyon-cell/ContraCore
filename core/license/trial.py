@@ -38,6 +38,7 @@ _DATA_DIR = os.path.join(
 _TRIAL_CFG: 'dict[str, dict]' = {
     'xml-fatura':  {'days': 30, 'max_files': 5000},
     'compare-191': {'days': 30, 'max_files': 5000},  # max_files = muavin satır sayısı
+    'karsit-ymm':  {'days': 30, 'max_files': 10},    # max_files = karşıt firma sayısı
 }
 _DEFAULT_CFG = {'days': 30, 'max_files': 500}
 

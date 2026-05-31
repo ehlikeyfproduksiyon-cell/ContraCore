@@ -23,6 +23,7 @@ from PySide6.QtGui     import QFont
 from PySide6.QtCore    import Qt
 
 from core.shell import Shell
+from core.services.telemetry_service import telemetry
 
 
 def main():
@@ -41,6 +42,11 @@ def main():
 
     shell = Shell()
     shell.show()
+
+    # Telemetri başlat (arka planda, uygulamayı bloklamaz)
+    from core.license.hwid import get_hwid
+    from core.version import APP_VERSION
+    telemetry.init(hwid=get_hwid(), version=APP_VERSION)
 
     sys.exit(app.exec())
 

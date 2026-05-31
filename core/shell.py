@@ -22,6 +22,7 @@ from core.sidebar import Sidebar
 from core.router  import ModuleRouter
 
 from core import _icons as _ic
+from core.services.telemetry_service import telemetry
 
 
 class Shell(QMainWindow):
@@ -39,10 +40,12 @@ class Shell(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self._router        = ModuleRouter()
-        self._stacked       = QStackedWidget()
-        self._stack_index   : dict[str, int] = {}   # module_id → stack index
-        self._active_module : str | None     = None
+        self._router          = ModuleRouter()
+        self._stacked         = QStackedWidget()
+        self._stack_index     : dict[str, int] = {}   # module_id → stack index
+        self._active_module   : str | None     = None
+        self._module_open_time: float | None   = None  # telemetry: modül açılış zamanı
+        self._app_open_time   : float          = __import__('time').time()
 
         self._setup_window()
         self._setup_ui()
@@ -264,6 +267,14 @@ class Shell(QMainWindow):
         if module_id == self._active_module:
             return
 
+        # Telemetri: önceki modül kapandı
+        import time as _time
+        if self._active_module and self._module_open_time is not None:
+            elapsed = int(_time.time() - self._module_open_time)
+            telemetry.track('module_close', module_id=self._active_module,
+                            time_spent_seconds=elapsed)
+        self._module_open_time = _time.time()
+
         # Önceki modülü deactivate et
         self._call_lifecycle(self._active_module, 'on_module_deactivated')
 
@@ -278,6 +289,8 @@ class Shell(QMainWindow):
             self._activate_module_license(module_id)
             # Yeni modülü activate et
             self._call_lifecycle(module_id, 'on_module_activated')
+            # Telemetri: yeni modül açıldı
+            telemetry.track('module_open', module_id=module_id)
 
     def _load_into_stack(self, module_id: str):
         """Modülü router'dan alır, stack'e ekler."""
@@ -504,6 +517,17 @@ class Shell(QMainWindow):
         Her modül için önce stop isteği gönderilir, 3 saniye beklenir;
         hâlâ çalışıyorsa terminate edilir.
         """
+        import time as _time
+        # Telemetri: son modül kapandı
+        if self._active_module and self._module_open_time is not None:
+            elapsed = int(_time.time() - self._module_open_time)
+            telemetry.track('module_close', module_id=self._active_module,
+                            time_spent_seconds=elapsed)
+        # Telemetri: uygulama kapandı
+        session_dur = int(_time.time() - self._app_open_time)
+        telemetry.track('app_close', session_duration_seconds=session_dur)
+        telemetry.flush(timeout=2.0)
+
         for i in range(self._stacked.count()):
             widget = self._stacked.widget(i)
             host   = getattr(widget, '_cc_host_window', None)

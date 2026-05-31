@@ -16,6 +16,7 @@ from PySide6.QtGui     import QFont
 # Statik adapter importlari — Nuitka bunlari derler
 from cc_modules.xml_fatura  import adapter as _xf_adapter
 from cc_modules.compare_191 import adapter as _c191_adapter
+from cc_modules.karsit_ymm  import adapter as _karsit_adapter
 
 # ── Modül Kayıt Defteri ───────────────────────────────────────────────────────
 
@@ -33,6 +34,13 @@ MODULE_REGISTRY = [
         'icon_file'   : '191m.png',
         'accent_color': '#4DCC78',
         '_adapter'    : _c191_adapter,
+    },
+    {
+        'id'          : 'karsit-ymm',
+        'label'       : 'E-YMM Karşıt',
+        'icon_file'   : 'YMM.png',
+        'accent_color': '#5B9CF6',
+        '_adapter'    : _karsit_adapter,
     },
 ]
 

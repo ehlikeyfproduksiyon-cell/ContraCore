@@ -650,7 +650,8 @@ class DonutChart(QWidget):
             p.drawArc(r, 90 * 16, -span)
 
         # Orta metin — font boyutunu iç alana sığacak şekilde dinamik ayarla
-        p.setPen(QColor(TEXT))
+        from core import theme as _t
+        p.setPen(QColor(_t.DARK_TEXT if _t.is_dark() else TEXT))
         txt = f'%{self._pct:.1f}'   # her zaman sayısal göster (%0.0 dahil)
         inner_w = (side - 2 * margin) * (1 - 0.13) * 0.80   # ring kalınlığı çıkarılmış iç çap
         base_pt = int(side * 0.17)
@@ -811,9 +812,14 @@ class MainWindow(QMainWindow):
             scroll.setWidgetResizable(True)
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             scroll.setStyleSheet(f'QScrollArea{{border:none;background:{BG};}}')
+            self._root_widget = scroll
             self.setCentralWidget(scroll)
         else:
+            self._root_widget = content
             self.setCentralWidget(content)
+
+        from core import theme as _theme
+        _theme.register(self._apply_theme)
 
         # Klavye kısayolları
         QShortcut(QKeySequence('F5'),      self, self._on_start)
@@ -832,18 +838,11 @@ class MainWindow(QMainWindow):
         left = QHBoxLayout()
         left.setSpacing(12)
 
-        lbl_logo = QLabel()
-        lbl_logo.setStyleSheet('background:transparent;border:none;')
-        from core import _icons as _ic_logo
-        _lpix = _ic_logo.load('ContraCore.png')
-        if not _lpix.isNull():
-            _h = 76
-            _w = int(_lpix.width() * _h / _lpix.height())
-            lbl_logo.setPixmap(_lpix.scaled(_w, _h, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        else:
-            lbl_logo.setText('CC')
-            lbl_logo.setStyleSheet('font-size:22px;font-weight:900;background:transparent;')
-        left.addWidget(lbl_logo)
+        self._lbl_logo = QLabel()
+        self._lbl_logo.setStyleSheet('background:transparent;border:none;')
+        self._logo_h = 76
+        self._update_logo()
+        left.addWidget(self._lbl_logo)
 
         title_col = QVBoxLayout()
         title_col.setSpacing(2)
@@ -877,10 +876,10 @@ class MainWindow(QMainWindow):
             p.end()
             return pix
 
-        cc_lbl = QLabel()
-        cc_lbl.setStyleSheet('background:transparent;border:none;')
-        cc_lbl.setPixmap(_cc_pix(24))
-        title_row.addWidget(cc_lbl)
+        self._cc_lbl = QLabel()
+        self._cc_lbl.setStyleSheet('background:transparent;border:none;')
+        self._cc_lbl.setPixmap(_cc_pix(24))
+        title_row.addWidget(self._cc_lbl)
         title_row.addStretch()
 
         title_col.addLayout(title_row)
@@ -974,7 +973,59 @@ class MainWindow(QMainWindow):
                 self._profile_popup.show_at(prof)
         prof.mousePressEvent = _tog
         lay.addWidget(prof)
+
+        from core import theme as _theme
+        self.btn_theme = _theme.make_toggle_button()
+        self.btn_theme.clicked.connect(lambda: _theme.toggle())
+        lay.addWidget(self.btn_theme)
+
         return f
+
+    def _update_logo(self):
+        import os as _os
+        from core import theme as _t
+        _LOGO_DIR = _os.path.join(_os.path.dirname(__file__), '..', '..', 'Logom', 'big_logo')
+        fname = 'ContraCoreBeyaz.png' if _t.is_dark() else 'ContraCore.png'
+        pix = QPixmap(_os.path.join(_LOGO_DIR, fname))
+        if pix.isNull():
+            pix = QPixmap(_os.path.join(_LOGO_DIR, 'ContraCore.png'))
+        if not pix.isNull() and hasattr(self, '_lbl_logo'):
+            h = self._logo_h
+            w = int(pix.width() * h / pix.height())
+            self._lbl_logo.setPixmap(pix.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        if hasattr(self, '_cc_lbl'):
+            from PySide6.QtGui import QPainterPath as _QPP, QLinearGradient as _QLG, QBrush as _QB, QFontMetrics as _QFM
+            def _cc_pix(sz):
+                font = QFont('Coolvetica', sz, QFont.Bold)
+                fm = _QFM(font)
+                cw = fm.horizontalAdvance('Contra'); ow = fm.horizontalAdvance('CORE')
+                h2 = fm.height() + 4
+                p2 = QPixmap(cw + ow + 4, h2); p2.fill(Qt.transparent)
+                pr = QPainter(p2); pr.setRenderHint(QPainter.Antialiasing)
+                pa1 = _QPP(); pa1.addText(2, fm.ascent() + 2, font, 'Contra')
+                g1 = _QLG(0, 2, 0, h2 - 2)
+                if _t.is_dark():
+                    g1.setColorAt(0, QColor('#FFFFFF')); g1.setColorAt(1, QColor('#E2E8F0'))
+                else:
+                    g1.setColorAt(0, QColor('#0a1e43')); g1.setColorAt(1, QColor('#081631'))
+                pr.setBrush(_QB(g1)); pr.setPen(Qt.NoPen); pr.drawPath(pa1)
+                pa2 = _QPP(); pa2.addText(2 + cw, fm.ascent() + 2, font, 'CORE')
+                g2 = _QLG(0, 2, 0, h2 - 2)
+                g2.setColorAt(0, QColor('#c8a45b')); g2.setColorAt(1, QColor('#96732d'))
+                pr.setBrush(_QB(g2)); pr.drawPath(pa2); pr.end()
+                return p2
+            self._cc_lbl.setPixmap(_cc_pix(24))
+
+    def _apply_theme(self):
+        from core import theme as _theme
+        if hasattr(self, 'btn_theme'):
+            self.btn_theme.setText('☀️' if _theme.is_dark() else '🌙')
+        self._update_logo()
+        root = getattr(self, '_root_widget', None) or self.centralWidget()
+        _theme.apply_to_widget(root)
+        # Gauge'ı yeniden çiz (% rengi tema değişince)
+        if hasattr(self, 'donut'):
+            self.donut.update()
 
     def _trial_banner(self):
         """Deneme modunda üstte sabit bilgi şeridi. Lisanslıda gizlidir."""
@@ -1037,7 +1088,7 @@ class MainWindow(QMainWindow):
         hdr.addWidget(hdr_ico)
         lbl = QLabel('DOSYA SEÇİMİ')
         lbl.setStyleSheet(
-            f'font-size:11px;font-weight:700;color:{TEXT2};'
+            f'font-size:14px;font-weight:700;color:{TEXT};'
             f'background:transparent;border:none;letter-spacing:0.5px;'
         )
         hdr.addWidget(lbl)
@@ -1105,7 +1156,7 @@ class MainWindow(QMainWindow):
             sec_ico.setText('📊')
         sec_lbl = QLabel('KARŞILAŞTIRMA ÖZETİ')
         sec_lbl.setStyleSheet(
-            f'font-size:11px;font-weight:700;color:{TEXT2};'
+            f'font-size:14px;font-weight:700;color:{TEXT};'
             f'background:transparent;border:none;letter-spacing:0.5px;'
         )
         self.btn_detay = QPushButton('📊  Detaylı Gör')
